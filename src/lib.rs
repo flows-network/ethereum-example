@@ -1,13 +1,17 @@
+use ethers_core::types::NameOrAddress;
 use webhook_flows::{create_endpoint, request_handler, send_response};
 use flowsnet_platform_sdk::logger;
 use serde_json::Value;
+use serde_json::json;
 use std::collections::HashMap;
-use ethers::prelude::*;
-use ethers::types::Bytes;
-use ethers::utils;
+use ethers_signers::{LocalWallet, Signer};
+use ethers_core::types::{Bytes, U256, U64};
+use ethers_core::{types::TransactionRequest, types::transaction::eip2718::TypedTransaction};
+use ethers_core::utils::hex;
+use hyper::{Client, Body};
+use hyper::body::HttpBody;
+use hyper::http::{Request, Method};
 
-
-// type Client = SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>;
 
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
@@ -19,33 +23,58 @@ pub async fn on_deploy() {
 async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap<String, Value>, _body: Vec<u8>) {
     logger::init();
     log::info!("Query -- {:?}", qry);
-    
-    let provider = Provider::<Http>::try_from("https://polygon-mumbai.blockpi.network/v1/rpc/public").unwrap();
-    let chain_id = provider.get_chainid().await.unwrap();
+
+    let https = wasmedge_hyper_rustls::connector::new_https_connector(
+        wasmedge_rustls_api::ClientConfig::default(),
+    );
+    let client = Client::builder().build::<_, hyper::Body>(https);
+
+    let rpc_node_url = "https://api.zan.top/node/v1/polygon/mumbai/public";    
     let private_key = std::env::var("PRIVATE_KEY").unwrap();
     let wallet: LocalWallet = private_key
-    .parse::<LocalWallet>().unwrap()
-    .with_chain_id(chain_id.as_u64());
+    .parse::<LocalWallet>().unwrap();
 
-    let address_from = wallet.address();
-    let address_to = qry.get("address_to").unwrap_or(&Value::String("".to_string())).to_string();
-    let value = qry.get("value").unwrap_or(&Value::Number(0.into())).to_string();
-    let data: Bytes = Bytes::from(qry.get("data").unwrap_or(&Value::String("".to_string())).to_string().as_bytes().to_vec());
+    let address_to = qry.get("address_to").unwrap().to_string().parse::<NameOrAddress>().unwrap();
+    let value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap()).unwrap();
+    
+    let mut tx: TypedTransaction = TransactionRequest::new()
+        .to(address_to) // this will use ENS
+        .nonce::<U256>(1.into())
+        .value(value).into();
+    tx.set_gas::<U256>(21000.into());
+    tx.set_gas_price::<U256>(U256::from_dec_str("20000000000").unwrap().into());
+    tx.set_chain_id::<U64>(80001.into());
+
+    if let Some(data) = qry.get("data") {
+        tx.set_data(Bytes::from(data.to_string().as_bytes().to_vec()));
+    }
 
 
-    let tx = TransactionRequest::new()
-        .to(address_to)
-        .value(U256::from(utils::parse_ether(value).unwrap()))
-        .data(data)
-        .from(address_from);
 
     log::info!("Tx: {:#?}", tx);
 
-    let client = SignerMiddleware::new(provider.clone(), wallet.clone());
-    let tx = client.send_transaction(tx, None).await.unwrap().await.unwrap();
 
+    let signature = wallet.sign_transaction(&tx).await.unwrap();
 
-    let resp = serde_json::to_string(&tx).unwrap();
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(rpc_node_url)
+        .body(Body::from(json!({
+            "jsonrpc": "2.0",
+            "method": "eth_sendRawTransaction",
+            "params": [hex::encode(tx.rlp_signed(&signature))],
+            "id": 1
+        }).to_string())).unwrap();
+
+    let mut res = client.request(req).await.unwrap();
+
+    let mut resp_data = Vec::new();
+    while let Some(next) = res.data().await {
+        let chunk = next.unwrap();
+        resp_data.extend_from_slice(&chunk);
+    }
+
+    let resp = serde_json::to_string(&resp_data).unwrap();
     
     send_response(
         200,
