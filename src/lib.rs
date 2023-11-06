@@ -26,12 +26,14 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
     logger::init();
     log::info!("Query -- {:?}", qry);
 
-    let rpc_node_url = "https://light-still-glitter.ethereum-sepolia.quiknode.pro/f5d93df9549486a186b3e6e868499925b0340d9a/";
+    // let rpc_node_url = "https://light-still-glitter.ethereum-sepolia.quiknode.pro/f5d93df9549486a186b3e6e868499925b0340d9a/";
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap();
+    let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
     let private_key = std::env::var("PRIVATE_KEY").unwrap();
     let wallet: LocalWallet = private_key
     .parse::<LocalWallet>()
     .unwrap()
-    .with_chain_id(11155111u64);
+    .with_chain_id(chain_id);
     
 
     let address_from = wallet.address();
@@ -39,7 +41,7 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
     let value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap()).unwrap();
     let wei_in_gwei = U256::from(10_u64.pow(9));
     
-    let nonce = get_nonce(rpc_node_url, format!("{:?}", wallet.address()).as_str()).await.unwrap();
+    let nonce = get_nonce(&rpc_node_url, format!("{:?}", wallet.address()).as_str()).await.unwrap();
     let data: ethers_core::types::Bytes;
     if let Some(qry_data) = qry.get("data") {      
         data = Bytes::from(hex::decode(qry_data.to_string().trim_start_matches("0x")).unwrap());
@@ -47,15 +49,15 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
         data = Bytes::from(vec![0u8; 32]);
     }
 
-    let estimate_gas = get_estimate_gas(rpc_node_url, format!("{:?}", address_from).as_str(), format!("{:?}", address_to.as_address().unwrap()).as_str(), format!("0x{:x}", value).as_str(), data.clone().encode_hex().as_str()).await.unwrap();
+    let estimate_gas = get_estimate_gas(&rpc_node_url, format!("{:?}", address_from).as_str(), format!("{:?}", address_to.as_address().unwrap()).as_str(), format!("0x{:x}", value).as_str(), data.clone().encode_hex().as_str()).await.unwrap();
     
     let tx: TypedTransaction = TransactionRequest::new()
     .from(address_from)
     .to(address_to) 
         .nonce::<U256>(nonce.into())
-        .gas_price::<U256>((get_gas_price(rpc_node_url).await.unwrap() * wei_in_gwei).into())
+        .gas_price::<U256>((get_gas_price(&rpc_node_url).await.unwrap() * wei_in_gwei).into())
         .gas::<U256>(estimate_gas.into())
-        .chain_id::<U64>(11155111.into())
+        .chain_id::<U64>(chain_id.into())
         .data::<Bytes>(data.into())
         .value(value).into();    
 
@@ -65,7 +67,7 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
     
     let signature = wallet.sign_transaction(&tx).await.unwrap();
     let params = json!([format!("0x{}", hex::encode(tx.rlp_signed(&signature))).as_str()]);
-    let resp = json_rpc(rpc_node_url, "eth_sendRawTransaction", params).await.unwrap();
+    let resp = json_rpc(&rpc_node_url, "eth_sendRawTransaction", params).await.unwrap();
 	
     log::info!("resp: {:#?}", resp);
     
