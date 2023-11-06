@@ -6,7 +6,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
 use ethers_signers::{LocalWallet, Signer};
-use ethers_core::types::{Bytes, U256, U64};
+use ethers_core::types::{Bytes, U256, U64, H160};
 use ethers_core::{types::TransactionRequest, types::transaction::eip2718::TypedTransaction};
 use ethers_core::utils::hex;
 use ethers_core::abi::AbiEncode;
@@ -25,49 +25,55 @@ pub async fn on_deploy() {
 async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap<String, Value>, _body: Vec<u8>) {
     logger::init();
     log::info!("Query -- {:?}", qry);
-
-    // let rpc_node_url = "https://light-still-glitter.ethereum-sepolia.quiknode.pro/f5d93df9549486a186b3e6e868499925b0340d9a/";
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap();
-    let chain_id = std::env::var("CHAIN_ID").unwrap().parse::<u64>().unwrap();
-    let private_key = std::env::var("PRIVATE_KEY").unwrap();
+    
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(11155111u64);
+    let private_key = std::env::var("PRIVATE_KEY").unwrap_or("".to_string());
+    log::info!("ENV: {} {} {}", rpc_node_url, chain_id, private_key);
     let wallet: LocalWallet = private_key
     .parse::<LocalWallet>()
     .unwrap()
     .with_chain_id(chain_id);
-    
+
 
     let address_from = wallet.address();
-    let address_to = qry.get("address_to").unwrap().to_string().parse::<NameOrAddress>().unwrap();
-    let value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap()).unwrap();
+    let address_to = NameOrAddress::from(H160::from_str(qry.get("address_to").unwrap().to_string().as_str().trim_matches('"')).unwrap());
+    let value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap().trim_matches('"')).unwrap();
     let wei_in_gwei = U256::from(10_u64.pow(9));
     
     let nonce = get_nonce(&rpc_node_url, format!("{:?}", wallet.address()).as_str()).await.unwrap();
     let data: ethers_core::types::Bytes;
     if let Some(qry_data) = qry.get("data") {      
-        data = Bytes::from(hex::decode(qry_data.to_string().trim_start_matches("0x")).unwrap());
+        data = Bytes::from(hex::decode(qry_data.to_string().trim_matches('"').trim_start_matches("0x")).unwrap());
     }else{
         data = Bytes::from(vec![0u8; 32]);
     }
 
-    let estimate_gas = get_estimate_gas(&rpc_node_url, format!("{:?}", address_from).as_str(), format!("{:?}", address_to.as_address().unwrap()).as_str(), format!("0x{:x}", value).as_str(), data.clone().encode_hex().as_str()).await.unwrap();
+    log::info!("Parameter: {:#?} {:#?} {:#?}", data, nonce, address_to);
+    
+    let estimate_gas = get_estimate_gas(&rpc_node_url, format!("{:?}", address_from).as_str(), 
+                                        format!("{:?}", address_to.as_address().expect("Failed to transfer address")).as_str(), 
+                                        format!("0x{:x}", value).as_str(), data.clone().encode_hex().as_str())
+                                        .await
+                                        .expect("Failed to gat estimate gas.");
     
     let tx: TypedTransaction = TransactionRequest::new()
     .from(address_from)
     .to(address_to) 
-        .nonce::<U256>(nonce.into())
-        .gas_price::<U256>((get_gas_price(&rpc_node_url).await.unwrap() * wei_in_gwei).into())
-        .gas::<U256>(estimate_gas.into())
-        .chain_id::<U64>(chain_id.into())
-        .data::<Bytes>(data.into())
-        .value(value).into();    
-
-
+    .nonce::<U256>(nonce.into())
+    .gas_price::<U256>(get_gas_price(&rpc_node_url).await.expect("Failed to get gas price.").into())
+    .gas::<U256>(estimate_gas.into())
+    .chain_id::<U64>(chain_id.into())
+    .data::<Bytes>(data.into())
+    .value(value).into();    
+    
+    
     log::info!("Tx: {:#?}", tx);
     
     
-    let signature = wallet.sign_transaction(&tx).await.unwrap();
+    let signature = wallet.sign_transaction(&tx).await.expect("Failed to sign.");
     let params = json!([format!("0x{}", hex::encode(tx.rlp_signed(&signature))).as_str()]);
-    let resp = json_rpc(&rpc_node_url, "eth_sendRawTransaction", params).await.unwrap();
+    let resp = json_rpc(&rpc_node_url, "eth_sendRawTransaction", params).await.expect("Failed to send raw transaction.");
 	
     log::info!("resp: {:#?}", resp);
     
@@ -80,21 +86,21 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
 
 pub async fn get_gas_price(rpc_node_url: &str) -> Result<U256> {
     let params = json!([]);
-    let result = json_rpc(rpc_node_url, "eth_gasPrice", params).await.unwrap();
+    let result = json_rpc(rpc_node_url, "eth_gasPrice", params).await.expect("Failed to send json.");
     
     Ok(U256::from_str(&result)?)
 }
 
 pub async fn get_nonce(rpc_node_url: &str, address: &str) -> Result<U256> {
     let params = json!([address, "pending"]);
-    let result = json_rpc(rpc_node_url, "eth_getTransactionCount", params).await.unwrap();
+    let result = json_rpc(rpc_node_url, "eth_getTransactionCount", params).await.expect("Failed to send json.");
     
     Ok(U256::from_str(&result)?)
 }
 
 pub async fn get_estimate_gas(rpc_node_url: &str, from: &str, to: &str, value: &str, data: &str) -> Result<U256> {
     let params = json!([{"from": from, "to": to, "value":value, "data":data}]);
-    let result = json_rpc(rpc_node_url, "eth_estimateGas", params).await.unwrap();
+    let result = json_rpc(rpc_node_url, "eth_estimateGas", params).await.expect("Failed to send json.");
     
     Ok(U256::from_str(&result)?)
 }
@@ -122,5 +128,5 @@ pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> 
     
     println!("Response body: {:#?}", map);
     
-    Ok(map["result"].as_str().unwrap().to_string())
+    Ok(map["result"].as_str().expect("Failed to parse json.").to_string())
 }
