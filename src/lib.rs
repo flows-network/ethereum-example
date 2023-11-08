@@ -37,23 +37,22 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
 
 
     let address_from = wallet.address();
-    let address_to = NameOrAddress::from(H160::from_str(qry.get("address_to").unwrap().to_string().as_str().trim_matches('"')).unwrap());
-    let value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap().trim_matches('"')).unwrap();
-    let wei_in_gwei = U256::from(10_u64.pow(9));
-    
+    let address_to = NameOrAddress::from(H160::from_str(qry.get("address_to").expect("Require address_to").to_string().as_str().trim_matches('"')).expect("Failed to parse address_to"));
+    let mut value = U256::from_dec_str("0").unwrap();
+    if let Some(_value) = qry.get("value") {
+        value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap().trim_matches('"')).expect("Failed to parse value.");
+    }
     let nonce = get_nonce(&rpc_node_url, format!("{:?}", wallet.address()).as_str()).await.unwrap();
-    let data: ethers_core::types::Bytes;
+    let mut data = Bytes::from(vec![0u8; 32]);
     if let Some(qry_data) = qry.get("data") {      
-        data = Bytes::from(hex::decode(qry_data.to_string().trim_matches('"').trim_start_matches("0x")).unwrap());
-    }else{
-        data = Bytes::from(vec![0u8; 32]);
+        data = Bytes::from(hex::decode(qry_data.to_string().trim_matches('"').trim_start_matches("0x")).expect("Failed to parse data."));
     }
 
     log::info!("Parameter: {:#?} {:#?} {:#?}", data, nonce, address_to);
     
     let estimate_gas = get_estimate_gas(&rpc_node_url, format!("{:?}", address_from).as_str(), 
                                         format!("{:?}", address_to.as_address().expect("Failed to transfer address")).as_str(), 
-                                        format!("0x{:x}", value).as_str(), data.clone().encode_hex().as_str())
+                                        format!("0x{:x}", value).as_str(), format!("{:}", data).as_str())
                                         .await
                                         .expect("Failed to gat estimate gas.");
     
@@ -121,12 +120,18 @@ pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> 
             "id": 1
         }).to_string()))?;
 
-    println!("Params: {:#?}", params);
     let res = client.request(req).await?;
     let body = hyper::body::to_bytes(res.into_body()).await?;
     let map: HashMap<String, serde_json::Value> = serde_json::from_str(&String::from_utf8(body.into())?)?;
     
-    println!("Response body: {:#?}", map);
-    
+    if map.contains_key("error") {
+        log::error!("{} request body: {:#?}", method, json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": 1
+        }));
+        log::error!("{} response body: {:#?}", method, map);
+    }
     Ok(map["result"].as_str().expect("Failed to parse json.").to_string())
 }
