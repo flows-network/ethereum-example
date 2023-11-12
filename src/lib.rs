@@ -27,7 +27,7 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
     log::info!("Query -- {:?}", qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(11155111u64);
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
     let private_key = std::env::var("PRIVATE_KEY").unwrap_or("".to_string());
     log::info!("ENV: {} {} {}", rpc_node_url, chain_id, private_key);
     let wallet: LocalWallet = private_key
@@ -54,7 +54,7 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
                                         format!("{:?}", address_to.as_address().expect("Failed to transfer address")).as_str(), 
                                         format!("0x{:x}", value).as_str(), format!("{:}", data).as_str())
                                         .await
-                                        .expect("Failed to gat estimate gas.");
+                                        .expect("Failed to gat estimate gas.") * U256::from(12) / U256::from(10);
     
     let tx: TypedTransaction = TransactionRequest::new()
     .from(address_from)
