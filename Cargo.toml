@@ -14,7 +14,7 @@ log = "0.4"
 http_req_wasi = { version = "0.10", features = ["wasmedge_ssl"] }
 flowsnet-platform-sdk = "0.1"
 tokio_wasi = { version = "1.25.1", features = ["macros", "rt", "sync"] }
-webhook-flows = "0.4.0"
+webhook-flows = "0.4.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ethers-signers = "2.0.10"
