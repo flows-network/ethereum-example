@@ -1,5 +1,5 @@
 use ethers_core::types::NameOrAddress;
-use webhook_flows::{create_endpoint, request_handler, send_response};
+use webhook_flows::{create_endpoint, request_handler, send_response, route::{get, route, RouteError, Router}};
 use flowsnet_platform_sdk::logger;
 use serde_json::Value;
 use serde_json::json;
@@ -9,7 +9,6 @@ use ethers_signers::{LocalWallet, Signer};
 use ethers_core::types::{Bytes, U256, U64, H160};
 use ethers_core::{types::TransactionRequest, types::transaction::eip2718::TypedTransaction};
 use ethers_core::utils::hex;
-use ethers_core::abi::AbiEncode;
 use hyper::{Client, Body};
 use hyper::http::{Request, Method};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -19,12 +18,52 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 #[tokio::main(flavor = "current_thread")]
 pub async fn on_deploy() {
     create_endpoint().await;
+    logger::init();
 }
 
 #[request_handler]
-async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap<String, Value>, _body: Vec<u8>) {
+async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMap<String, Value>, _body: Vec<u8>) {
+    let mut router = Router::new();
+    log::info!("Query -- {:?}", _qry);
+    router
+        .insert(
+            "/sign-tx",
+            vec![get(send_transaction)],
+        )
+        .unwrap();
+
+    router
+        .insert(
+            "/gen-key",
+            vec![get(gen_key)],
+        )
+        .unwrap();
+
+    if let Err(e) = route(router).await {
+        match e {
+            RouteError::NotFound => {
+                send_response(404, vec![], b"No route matched".to_vec());
+            }
+            RouteError::MethodNotAllowed => {
+                send_response(405, vec![], b"Method not allowed".to_vec());
+            }
+        }
+    }
+}
+
+async fn gen_key(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    
+    log::info!("Gen key Query -- {:?}", _qry);
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("text/html"))],
+        "Not implement!".to_string().into_bytes().to_vec(),
+    );
+}
+
+async fn send_transaction(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
-    log::info!("Query -- {:?}", qry);
+    log::info!("Send trsaction Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
@@ -37,14 +76,14 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, qry: HashMap
 
 
     let address_from = wallet.address();
-    let address_to = NameOrAddress::from(H160::from_str(qry.get("address_to").expect("Require address_to").to_string().as_str().trim_matches('"')).expect("Failed to parse address_to"));
+    let address_to = NameOrAddress::from(H160::from_str(_qry.get("address_to").expect("Require address_to").to_string().as_str().trim_matches('"')).expect("Failed to parse address_to"));
     let mut value = U256::from_dec_str("0").unwrap();
-    if let Some(_value) = qry.get("value") {
-        value = U256::from_dec_str(qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap().trim_matches('"')).expect("Failed to parse value.");
+    if let Some(_value) = _qry.get("value") {
+        value = U256::from_dec_str(_qry.get("value").unwrap_or(&Value::Number(0.into())).as_str().unwrap().trim_matches('"')).expect("Failed to parse value.");
     }
     let nonce = get_nonce(&rpc_node_url, format!("{:?}", wallet.address()).as_str()).await.unwrap();
     let mut data = Bytes::from(vec![0u8; 32]);
-    if let Some(qry_data) = qry.get("data") {      
+    if let Some(qry_data) = _qry.get("data") {      
         data = Bytes::from(hex::decode(qry_data.to_string().trim_matches('"').trim_start_matches("0x")).expect("Failed to parse data."));
     }
 
