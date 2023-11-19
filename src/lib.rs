@@ -5,10 +5,11 @@ use serde_json::Value;
 use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
-use ethers_signers::{LocalWallet, Signer};
+use ethers_signers::{LocalWallet, Signer, MnemonicBuilder, coins_bip39::English};
 use ethers_core::types::{Bytes, U256, U64, H160};
 use ethers_core::{types::TransactionRequest, types::transaction::eip2718::TypedTransaction};
 use ethers_core::utils::hex;
+use ethers_core::rand;
 use hyper::{Client, Body};
 use hyper::http::{Request, Method};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -52,10 +53,29 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
 async fn gen_key(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
     log::info!("Gen key Query -- {:?}", _qry);
+    let wallet;
+    if let Some(_phrase) = _qry.get("phrase") {
+        let phrase = _qry.get("phrase").unwrap().as_str().unwrap().trim_matches('"');
+        wallet = MnemonicBuilder::<English>::default()
+        .phrase(phrase)
+        .build()
+        .unwrap();
+    } else {
+        let mut rng = rand::thread_rng();
+        wallet = MnemonicBuilder::<English>::default()
+        .word_count(24)
+        .derivation_path("m/44'/60'/0'/2/1")
+        .unwrap()
+        .build_random(&mut rng)
+        .unwrap();   
+    }
+
+    log::info!("Your address is: {:?}, private key: 0x{}", wallet.address(), hex::encode(wallet.signer().to_bytes()));
+    let resp = format!("Your address is: {:?}.", wallet.address()); 
     send_response(
         200,
         vec![(String::from("content-type"), String::from("text/html"))],
-        "Not implement!".to_string().into_bytes().to_vec(),
+        resp.into_bytes().to_vec(),
     );
 }
 
