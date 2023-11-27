@@ -9,8 +9,6 @@ use ethers_core::types::{NameOrAddress, Bytes, U256, U64, H160, TransactionReque
 use ethers_core::abi::{Abi, Function, Token};
 use ethers_core::utils::hex;
 use ethers_core::rand;
-use hyper::{Client, Body};
-use hyper::http::{Request, Method};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 
@@ -233,24 +231,21 @@ pub async fn get_estimate_gas(rpc_node_url: &str, from: &str, to: &str, value: &
 }
 
 pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> {
-    let https = wasmedge_hyper_rustls::connector::new_https_connector(
-        wasmedge_rustls_api::ClientConfig::default(),
-    );
-    let client = Client::builder().build::<_, hyper::Body>(https);
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri(url)
+    let client = reqwest::Client::new();
+    let res = client
+        .post(url)
         .header("Content-Type","application/json")
-        .body(Body::from(json!({
+        .body(json!({
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
             "id": 1
-        }).to_string()))?;
+        }).to_string())
+        .send()
+        .await?;
 
-    let res = client.request(req).await?;
-    let body = hyper::body::to_bytes(res.into_body()).await?;
-    let map: HashMap<String, serde_json::Value> = serde_json::from_str(&String::from_utf8(body.into())?)?;
+    let body = res.text().await?;
+    let map: HashMap<String, serde_json::Value> = serde_json::from_str(body.as_str())?;
     
     if !map.contains_key("result"){
         log::error!("{} request body: {:#?}", method, json!({
