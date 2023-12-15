@@ -42,6 +42,19 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
         )
         .unwrap();
 
+    router
+        .insert(
+            "/get_txs",
+            vec![get(get_txs)],
+        )
+        .unwrap();
+    router
+        .insert(
+            "/get_balance",
+            vec![get(get_balance)],
+         )
+        .unwrap();
+
     if let Err(e) = route(router).await {
         match e {
             RouteError::NotFound => {
@@ -181,6 +194,46 @@ pub fn create_pbm_pay_data(receiver_address: H160, amount: U256) -> Result<Bytes
     Ok(Bytes::from(data))
 }
 
+pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    logger::init();
+    log::info!("get txs Query -- {:?}", _qry);
+    
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
+    let caller = NameOrAddress::from(H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address"));
+    let eth_balance = get_ethbalance(&rpc_node_url, caller).await.unwrap();
+    let resp = "";
+    
+    match chain_id{
+        18 =>{
+
+        },
+        _ => {rep = "Not implement."},
+    }
+
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("text/html"))],
+        resp.into_bytes().to_vec(),
+    );
+}
+
+pub async fn get_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    logger::init();
+    log::info!("get txs Query -- {:?}", _qry);
+    
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
+    let caller = NameOrAddress::from(H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address"));
+    
+    let resp = get_ethbalance(&rpc_node_url, caller).await.unwrap().to_string();
+
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("text/html"))],
+        resp.into_bytes().to_vec(),
+    );
+}
 
 pub async fn wrap_transaction(rpc_node_url: &str, chain_id: u64, wallet: LocalWallet, address_to: NameOrAddress, data: Bytes, value: U256) -> Result<String> {
     let address_from = wallet.address();
@@ -207,6 +260,13 @@ pub async fn wrap_transaction(rpc_node_url: &str, chain_id: u64, wallet: LocalWa
     
 
     Ok(format!("0x{}", hex::encode(tx.rlp_signed(&signature))))
+}
+
+pub async fn get_ethbalance(rpc_node_url: &str, address: &str) -> Result<U256> {
+    let params = json!([address, "latest"]);
+    let result = json_rpc(rpc_node_url, "eth_getBalance", params).await.expect("Failed to send json.");
+    
+    Ok(U256::from_str(&result)?)
 }
 
 pub async fn get_gas_price(rpc_node_url: &str) -> Result<U256> {
