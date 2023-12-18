@@ -3,15 +3,15 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
 use ethers_signers::{LocalWallet, Signer};
-use ethers_core::types::{NameOrAddress, Bytes, U256, U64, H160, TransactionRequest, transaction::eip2718::TypedTransaction};
+use ethers_core::types::{NameOrAddress, Bytes, U256, U64, TransactionRequest, transaction::eip2718::TypedTransaction};
 use ethers_core::abi::{Abi, Function, Token};
 use ethers_core::utils::hex;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-pub fn create_pbm_pay_data(receiver_address: H160, amount: U256) -> Result<Bytes> {
-
-	let contract_abi: &str = r#"[
+pub fn create_contract_call_data(name: &str, tokens: Vec<Token>) -> Result<Bytes> {
+    
+    let contract_abi: &str = r#"[
 		{
 			"inputs": [
 				{"internalType": "address", "name": "receiver", "type": "address"},
@@ -21,19 +21,36 @@ pub fn create_pbm_pay_data(receiver_address: H160, amount: U256) -> Result<Bytes
 			"outputs": [],
 			"stateMutability": "nonpayable",
 			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "user",
+					"type": "address"
+				}
+			],
+			"name": "balanceOf",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
 		}
 	]"#;
-	let abi: Abi = serde_json::from_str(contract_abi).unwrap();
-	let function: &Function = abi
-		.functions()
-		.find(|&f| f.name == "pay")
-		.ok_or("Function not found in ABI")?;
+    let abi: Abi = serde_json::from_str(&contract_abi).unwrap();
+    let function: &Function = abi
+        .functions()
+        .find(|&f| f.name == name)
+        .ok_or("Function not found in ABI")?;
 
-	let receiver: H160 = receiver_address;
-	let tokens = vec![Token::Address(receiver), Token::Uint(amount.into())];
-	let data = function.encode_input(&tokens).unwrap();
+    let data = function.encode_input(&tokens).unwrap();
 
-	Ok(Bytes::from(data))
+    Ok(Bytes::from(data))
 }
 
 pub async fn wrap_transaction(rpc_node_url: &str, chain_id: u64, wallet: LocalWallet, address_to: NameOrAddress, data: Bytes, value: U256) -> Result<String> {
@@ -63,10 +80,16 @@ pub async fn wrap_transaction(rpc_node_url: &str, chain_id: u64, wallet: LocalWa
 	Ok(format!("0x{}", hex::encode(tx.rlp_signed(&signature))))
 }
 
+pub async fn eth_call(rpc_node_url: &str, from: &str, to: &str, data: &str) -> Result<String> {
+	let params = json!([{"from": from, "to": to, "data": data}, "latest"]);
+	let result = json_rpc(rpc_node_url, "eth_call", params).await.expect("Failed to send json.");
+
+	Ok(result)
+}
+
 pub async fn get_ethbalance(rpc_node_url: &str, address: &str) -> Result<U256> {
 	let params = json!([address, "latest"]);
 	let result = json_rpc(rpc_node_url, "eth_getBalance", params).await.expect("Failed to send json.");
-	
 	Ok(U256::from_str(&result)?)
 }
 
@@ -91,6 +114,12 @@ pub async fn get_estimate_gas(rpc_node_url: &str, from: &str, to: &str, value: &
 	Ok(U256::from_str(&result)?)
 }
 
+pub async fn get_log(rpc_node_url: &str, address: &str, topic: Value) -> Result<Value>{
+	let params = json!([{"address": address, "fromBlock": "earliest", "topics":topic}]);
+	let result = json_rpc(rpc_node_url, "eth_getLogs", params).await.expect("Failed to send json.");
+	Ok(serde_json::from_str(&result).unwrap())
+}
+
 pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> {
 	let client = reqwest::Client::new();
 	let res = client
@@ -107,7 +136,6 @@ pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> 
 
 	let body = res.text().await?;
 	let map: HashMap<String, serde_json::Value> = serde_json::from_str(body.as_str())?;
-	
 	if !map.contains_key("result"){
 		log::error!("{} request body: {:#?}", method, json!({
 			"jsonrpc": "2.0",
@@ -116,6 +144,13 @@ pub async fn json_rpc(url: &str, method: &str, params: Value) -> Result<String> 
 			"id": 1
 		}));
 		log::error!("{} response body: {:#?}", method, map);
+		println!("{} request body: {:#?}", method, json!({
+			"jsonrpc": "2.0",
+			"method": method,
+			"params": params,
+			"id": 1
+		}));
+		println!("{} response body: {:#?}", method, map);
 	}
-	Ok(map["result"].as_str().expect("Failed to parse json.").to_string())
+	Ok(serde_json::to_string(&map["result"]).expect("Failed to parse str.").trim_matches('"').to_string())
 }
