@@ -87,6 +87,12 @@ pub async fn eth_call(rpc_node_url: &str, from: &str, to: &str, data: &str) -> R
 	Ok(result)
 }
 
+pub async fn eth_get_block_by_hash(rpc_node_url: &str, hash: &str) -> Result<Value>{
+	let params = json!([hash, false]);
+	let result = json_rpc(rpc_node_url, "eth_getBlockByHash", params).await.expect("Failed to send json.");
+	Ok(serde_json::from_str(&result).unwrap())
+}
+
 pub async fn get_ethbalance(rpc_node_url: &str, address: &str) -> Result<U256> {
 	let params = json!([address, "latest"]);
 	let result = json_rpc(rpc_node_url, "eth_getBalance", params).await.expect("Failed to send json.");

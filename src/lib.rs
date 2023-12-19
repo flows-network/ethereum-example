@@ -240,7 +240,14 @@ pub async fn get_pbm_balance(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     let caller = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
 
     let data = create_contract_call_data("balanceOf", vec![Token::Address(caller.clone())]).unwrap();
-    let resp = eth_call(&rpc_node_url, "0x0000000000000000000000000000000000000000", format!("{:?}", contract_addrss).as_str(), format!("{:}", data).as_str()).await.unwrap();
+    let resp = U256::from_str(
+        eth_call(&rpc_node_url, "0x0000000000000000000000000000000000000000", format!("{:?}", contract_addrss).as_str(), format!("{:}", data).as_str())
+        .await
+        .unwrap()
+        .as_str()
+        )
+        .unwrap()
+        .to_string();
 
     send_response(
         200,
@@ -261,11 +268,16 @@ pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
     let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", format!("{:}", data).as_str()])).await.unwrap();
-    let mut transaction: Vec<Vec<String>> = vec!();
+    let mut transaction: Vec<Vec<Value>> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
-        let new_vec = vec!(format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]), format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]) , U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string());
+        let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
+        let new_vec = vec!(json!({
+            "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
+            "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
+            "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
+            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()}));
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
@@ -289,11 +301,16 @@ pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
     let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", null, format!("{:}", data).as_str()])).await.unwrap();
-    let mut transaction: Vec<Vec<String>> = vec!();
+    let mut transaction: Vec<Vec<Value>> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
-        let new_vec = vec!(format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]), format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]) , U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string());
+        let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
+        let new_vec = vec!(json!({
+            "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
+            "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
+            "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
+            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()}));
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
