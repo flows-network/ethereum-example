@@ -139,8 +139,8 @@ async fn send_transaction(_headers: Vec<(String, String)>, _qry: HashMap<String,
     logger::init();
     log::info!("Send trsaction Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
     let private_key = std::env::var("PRIVATE_KEY").unwrap_or("".to_string());
     log::info!("ENV: {} {} {}", rpc_node_url, chain_id, private_key);
     let wallet: LocalWallet = private_key
@@ -177,8 +177,8 @@ async fn pbm_pay(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, 
     logger::init();
     log::info!("PBM pay Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
     let private_key = std::env::var("PRIVATE_KEY").unwrap_or("".to_string());
     let wallet: LocalWallet = private_key
     .parse::<LocalWallet>()
@@ -187,7 +187,7 @@ async fn pbm_pay(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, 
 
 
     let reciver = NameOrAddress::from(H160::from_str(_qry.get("pay-to").expect("Require pay to address").to_string().as_str().trim_matches('"')).expect("Failed to parse address"));
-    let contract_addrss = NameOrAddress::from(H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address"));
+    let contract_addrss = NameOrAddress::from(H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0xb1C1cEE9952e99f1d114f80E6a17fD598Ef106Af".to_string()).as_str()).expect("Failed to parse contract address"));
     let value = U256::from_dec_str("0").unwrap();
     let wei_to_eth = U256::from_dec_str("1000000000000000000").unwrap();
     let data = create_contract_call_data("pay",
@@ -213,8 +213,8 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
     logger::init();
     log::info!("get txs Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
     let caller = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let eth_balance = get_ethbalance(&rpc_node_url, &caller).await.unwrap();
     let mut transaction: Vec<Value> = vec!();
@@ -249,7 +249,7 @@ pub async fn get_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, 
     logger::init();
     log::info!("get balance Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
     let caller = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
     
     let resp = get_ethbalance(&rpc_node_url, format!("{:?}", caller).as_str()).await.unwrap().to_string();
@@ -265,8 +265,8 @@ pub async fn get_pbm_balance(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     logger::init();
     log::info!("get pbm balance Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0xb1C1cEE9952e99f1d114f80E6a17fD598Ef106Af".to_string()).as_str()).expect("Failed to parse contract address");
     let caller = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
 
     let data = create_contract_call_data("balanceOf", vec![Token::Address(caller.clone())]).unwrap();
@@ -290,24 +290,23 @@ pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
     logger::init();
     log::info!("get pbm from txs Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let contract_addrss = std::env::var("CONTRACT_ADDRESS").unwrap_or("0xb1C1cEE9952e99f1d114f80E6a17fD598Ef106Af".to_string()).to_string();
     let query_address = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
     let mut bytes = vec![0u8; 32];
     bytes[12..32].copy_from_slice(&query_address.0);
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
-    let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", format!("{:}", data).as_str()])).await.unwrap();
+    let log = get_log(&rpc_node_url, &contract_addrss, json!(["0x34882e90c95bfeaeb7e0738cfd8af3d1f6ab3d2065dd70f6660b404b9beb3505", format!("{:}", data).as_str()])).await.unwrap();
     let mut transaction: Vec<Value> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
-        let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
         let new_vec = json!({
-            "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
+            "timestamp":U256::from_str(&now["data"].as_str().unwrap()[0..66]).unwrap().to_string(),
             "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
             "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
-            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()});
+            "amount": U256::from_str(&now["data"].as_str().unwrap()[66..130]).unwrap().to_string()});
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
@@ -323,24 +322,23 @@ pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     logger::init();
     log::info!("get pbm to txes Query -- {:?}", _qry);
     
-    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
-    let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
+    let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let contract_addrss = std::env::var("CONTRACT_ADDRESS").unwrap_or("0xb1C1cEE9952e99f1d114f80E6a17fD598Ef106Af".to_string()).to_string();
     let query_address = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
     let mut bytes = vec![0u8; 32];
     bytes[12..32].copy_from_slice(&query_address.0);
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
-    let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", null, format!("{:}", data).as_str()])).await.unwrap();
+    let log = get_log(&rpc_node_url, &contract_addrss, json!(["0x34882e90c95bfeaeb7e0738cfd8af3d1f6ab3d2065dd70f6660b404b9beb3505", null, format!("{:}", data).as_str()])).await.unwrap();
     let mut transaction: Vec<Value> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
-        let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
         let new_vec = json!({
-            "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
+            "timestamp":U256::from_str(&now["data"].as_str().unwrap()[0..66]).unwrap().to_string(),
             "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
             "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
-            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()});
+            "amount": U256::from_str(&now["data"].as_str().unwrap()[66..130]).unwrap().to_string()});
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
