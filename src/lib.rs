@@ -74,6 +74,24 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
             vec![get(get_pbm_to_txes)],
         )
         .unwrap();
+    router
+        .insert(
+            "/get_erc20_balance",
+            vec![get(get_erc20_balance)],
+        )
+        .unwrap();
+    router
+        .insert(
+            "/get_erc20_from_txs",
+            vec![get(get_erc20_from_txs)],
+        )
+        .unwrap();
+    router
+        .insert(
+            "/get_erc20_to_txes",
+            vec![get(get_erc20_to_txes)],
+        )
+        .unwrap();
 
 
     if let Err(e) = route(router).await {
@@ -229,7 +247,7 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
 
 pub async fn get_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
-    log::info!("get txs Query -- {:?}", _qry);
+    log::info!("get balance Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let caller = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
@@ -245,7 +263,7 @@ pub async fn get_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, 
 
 pub async fn get_pbm_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
-    log::info!("get txs Query -- {:?}", _qry);
+    log::info!("get pbm balance Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
@@ -270,7 +288,7 @@ pub async fn get_pbm_balance(_headers: Vec<(String, String)>, _qry: HashMap<Stri
 
 pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
-    log::info!("get txs Query -- {:?}", _qry);
+    log::info!("get pbm from txs Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
@@ -280,16 +298,16 @@ pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
     let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", format!("{:}", data).as_str()])).await.unwrap();
-    let mut transaction: Vec<Vec<Value>> = vec!();
+    let mut transaction: Vec<Value> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
         let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
-        let new_vec = vec!(json!({
+        let new_vec = json!({
             "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
             "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
             "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
-            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()}));
+            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()});
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
@@ -303,7 +321,7 @@ pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
 
 pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
-    log::info!("get txs Query -- {:?}", _qry);
+    log::info!("get pbm to txes Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let contract_addrss = H160::from_str(std::env::var("CONTRACT_ADDRESS").unwrap_or("0x37B9D85Bc94F549b839D3fe665Ab198fc0da8c94".to_string()).as_str()).expect("Failed to parse contract address");
@@ -313,19 +331,128 @@ pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     let data = Bytes::from(bytes);
     // Keccak-256 payEvent(address,address,uint256)
     let log = get_log(&rpc_node_url, format!("{:?}", contract_addrss).as_str(), json!(["0x87735f1d7098324c55ecf105f05db9566689190c39daf083a4ffc23074ad2c1e", null, format!("{:}", data).as_str()])).await.unwrap();
-    let mut transaction: Vec<Vec<Value>> = vec!();
+    let mut transaction: Vec<Value> = vec!();
     let len = log.as_array().unwrap().len();
     for idx in 0..len{
         let now = log.get(idx).unwrap();
         let block = eth_get_block_by_hash(&rpc_node_url, now["blockHash"].as_str().unwrap()).await.unwrap();
-        let new_vec = vec!(json!({
+        let new_vec = json!({
             "timestamp":U256::from_str(block["timestamp"].as_str().unwrap()).unwrap().to_string(),
             "from": format!("0x{}", &(now["topics"][1].to_string()).trim_matches('"')[26..]),
             "to": format!("0x{}", &(now["topics"][2].to_string()).trim_matches('"')[26..]),
-            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()}));
+            "amount": U256::from_str(now["data"].as_str().unwrap()).unwrap().to_string()});
         transaction.push(new_vec);
     } 
     let res_json:Value = transaction.into();
+    
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("application/json"))],
+        serde_json::to_vec_pretty(&res_json).unwrap(),
+    );
+}
+
+pub async fn get_erc20_balance(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    logger::init();
+    log::info!("get erc20 balance Query -- {:?}", _qry);
+    
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
+    let res_json:Value;
+    
+    match chain_id{
+        18 =>{
+            res_json = cmt_api::get_erc20_balance(&query_address).await.unwrap();
+            
+        },
+        _ => {
+            let resp = "Not implement.".to_string();
+            send_response(
+                200,
+                vec![(String::from("content-type"), String::from("text/html"))],
+                resp.into_bytes().to_vec(),
+            );
+            return;
+        },
+    }
+    
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("application/json"))],
+        serde_json::to_vec_pretty(&res_json).unwrap(),
+    );
+}
+
+pub async fn get_erc20_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    logger::init();
+    log::info!("get erc20 from txs Query -- {:?}", _qry);
+    
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
+    let mut transaction: Vec<Value> = vec!();
+    let balance: Value;
+
+    match chain_id{
+        18 =>{
+            let txs = cmt_api::get_erc20_transfer(&query_address).await.unwrap();
+            for idx in 0..txs.as_array().unwrap().len() {
+                if txs[idx]["from"].as_str().unwrap() == query_address.to_lowercase() {
+                    transaction.push(txs[idx].clone());
+                } 
+            }
+            balance = cmt_api::get_erc20_balance(&query_address).await.unwrap();
+        },
+        _ => {
+            let resp = "Not implement.".to_string();
+            send_response(
+                200,
+                vec![(String::from("content-type"), String::from("text/html"))],
+                resp.into_bytes().to_vec(),
+            );
+            return;
+        },
+    }
+    
+    let res_json:Value = json!({"transaction":Into::<Value>::into(transaction), "balance": balance});
+    
+    send_response(
+        200,
+        vec![(String::from("content-type"), String::from("application/json"))],
+        serde_json::to_vec_pretty(&res_json).unwrap(),
+    );
+}
+
+pub async fn get_erc20_to_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
+    logger::init();
+    log::info!("get erc20 to txes Query -- {:?}", _qry);
+    
+    let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
+    let mut transaction: Vec<Value> = vec!();
+    let balance: Value;
+
+    match chain_id{
+        18 =>{
+            let txs = cmt_api::get_erc20_transfer(&query_address).await.unwrap();
+            for idx in 0..txs.as_array().unwrap().len() {
+                if txs[idx]["to"].as_str().unwrap() == query_address.to_lowercase() {
+                    transaction.push(txs[idx].clone());
+                } 
+            }
+            balance = cmt_api::get_erc20_balance(&query_address).await.unwrap();
+        },
+        _ => {
+            let resp = "Not implement.".to_string();
+            send_response(
+                200,
+                vec![(String::from("content-type"), String::from("text/html"))],
+                resp.into_bytes().to_vec(),
+            );
+            return;
+        },
+    }
+    
+    let res_json:Value = json!({"transaction":Into::<Value>::into(transaction), "balance": balance});
     
     send_response(
         200,
