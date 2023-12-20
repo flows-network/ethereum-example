@@ -11,7 +11,7 @@ use std::str::FromStr;
 use ethers_core::abi::Token;
 
 pub mod ether_lib;
-// pub mod cmt_api;
+pub mod cmt_api;
 use ether_lib::*;
 
 #[no_mangle]
@@ -197,21 +197,33 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://sepolia-rollup.arbitrum.io/rpc".to_string());
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("421614".to_string()).parse::<u64>().unwrap_or(421614u64);
-    let caller = H160::from_str(_qry.get("address").expect("Require an address").to_string().as_str().trim_matches('"')).expect("Failed to parse address");
-    let eth_balance = get_ethbalance(&rpc_node_url, format!("{:?}", caller).as_str()).await.unwrap();
-    let resp:String;
-    
+    let caller = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
+    let eth_balance = get_ethbalance(&rpc_node_url, &caller).await.unwrap();
+    let mut transaction: Vec<Value> = vec!();
     match chain_id{
         18 =>{
-            resp = "Not implement.".to_string();
+            let query_tx = cmt_api::get_transaction(&caller).await.unwrap();
+            for idx in 0..query_tx.as_array().unwrap().len() {
+                if query_tx[idx]["from"].as_str().unwrap() == caller.to_lowercase() {
+                    transaction.push(query_tx[idx].clone());
+                } 
+            }
         },
-        _ => {resp = "Not implement.".to_string();},
+        _ => {
+            let resp = "Not implement.".to_string();
+            send_response(
+                200,
+                vec![(String::from("content-type"), String::from("text/html"))],
+                resp.into_bytes().to_vec(),
+            );
+            return;
+        },
     }
-
+    let res_json:Value = json!({"transaction":Into::<Value>::into(transaction), "balance": eth_balance.to_string()});
     send_response(
         200,
-        vec![(String::from("content-type"), String::from("text/html"))],
-        resp.into_bytes().to_vec(),
+        vec![(String::from("content-type"), String::from("application/json"))],
+        serde_json::to_vec_pretty(&res_json).unwrap(),
     );
 }
 
@@ -284,7 +296,7 @@ pub async fn get_pbm_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
     
     send_response(
         200,
-        vec![(String::from("content-type"), String::from("text/html"))],
+        vec![(String::from("content-type"), String::from("application/json"))],
         serde_json::to_vec_pretty(&res_json).unwrap(),
     );
 }
@@ -317,7 +329,7 @@ pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     
     send_response(
         200,
-        vec![(String::from("content-type"), String::from("text/html"))],
+        vec![(String::from("content-type"), String::from("application/json"))],
         serde_json::to_vec_pretty(&res_json).unwrap(),
     );
 }
