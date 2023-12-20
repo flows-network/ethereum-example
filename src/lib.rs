@@ -88,8 +88,8 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
         .unwrap();
     router
         .insert(
-            "/get_erc20_to_txes",
-            vec![get(get_erc20_to_txes)],
+            "/get_erc20_to_txs",
+            vec![get(get_erc20_to_txs)],
         )
         .unwrap();
 
