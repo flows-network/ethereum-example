@@ -7,6 +7,13 @@ pub async fn get_transaction(address: &str) -> Result<Value> {
 	let result = get_request(format!("?module=account&action=txlist&address={}", address).as_str())
 	.await
 	.unwrap();
+	Ok(result)
+}
+
+pub async fn get_erc20_balance(address: &str) -> Result<Value> {
+	let result = get_request(format!("?module=account&action=tokenlist&address={}", address).as_str())
+	.await
+	.unwrap();
 	let mut balance: Vec<Value> = vec!();
 	for idx in 0..result.as_array().unwrap().len() {
 		if result[idx]["type"].as_str().unwrap() == "ERC-20" {
@@ -22,13 +29,6 @@ pub async fn get_transaction(address: &str) -> Result<Value> {
 	}
 
 	Ok(balance.into())
-}
-
-pub async fn get_erc20_balance(address: &str) -> Result<Value> {
-	let result = get_request(format!("?module=account&action=tokenlist&address={}", address).as_str())
-	.await
-	.unwrap();
-	Ok(result)
 }
 
 pub async fn get_erc20_transfer(address: &str) -> Result<Value> {
