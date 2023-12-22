@@ -12,6 +12,7 @@ use ethers_core::abi::Token;
 
 pub mod ether_lib;
 pub mod cmt_api;
+pub mod moralis_api;
 use ether_lib::*;
 
 #[no_mangle]
@@ -214,6 +215,7 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
     log::info!("get txs Query -- {:?}", _qry);
     
     let rpc_node_url = std::env::var("RPC_NODE_URL").unwrap_or("https://mainnet.cybermiles.io".to_string());
+    let api_key = std::env::var("MORALIS_API_KEY").unwrap_or("".to_string());
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
     let caller = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let eth_balance = get_ethbalance(&rpc_node_url, &caller).await.unwrap();
@@ -228,13 +230,12 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
             }
         },
         _ => {
-            let resp = "Not implement.".to_string();
-            send_response(
-                200,
-                vec![(String::from("content-type"), String::from("text/html"))],
-                resp.into_bytes().to_vec(),
-            );
-            return;
+            let query_tx = moralis_api::get_transaction(&caller, &api_key, chain_id).await.unwrap();
+            for idx in 0..query_tx.as_array().unwrap().len() {
+                if query_tx[idx]["from_address"].as_str().unwrap() == caller.to_lowercase() {
+                    transaction.push(query_tx[idx].clone());
+                } 
+            }
         },
     }
     let res_json:Value = json!({"transaction":Into::<Value>::into(transaction), "balance": eth_balance.to_string()});
@@ -328,7 +329,7 @@ pub async fn get_pbm_to_txes(_headers: Vec<(String, String)>, _qry: HashMap<Stri
     let mut bytes = vec![0u8; 32];
     bytes[12..32].copy_from_slice(&query_address.0);
     let data = Bytes::from(bytes);
-    // Keccak-256 payEvent(address,address,uint256)
+    // Keccak-256 payEvent(uint256,address,address,uint256)
     let log = get_log(&rpc_node_url, &contract_addrss, json!(["0x34882e90c95bfeaeb7e0738cfd8af3d1f6ab3d2065dd70f6660b404b9beb3505", null, format!("{:}", data).as_str()])).await.unwrap();
     let mut transaction: Vec<Value> = vec!();
     let len = log.as_array().unwrap().len();
@@ -355,6 +356,7 @@ pub async fn get_erc20_balance(_headers: Vec<(String, String)>, _qry: HashMap<St
     log::info!("get erc20 balance Query -- {:?}", _qry);
     
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let api_key = std::env::var("MORALIS_API_KEY").unwrap_or("".to_string());
     let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let res_json:Value;
     
@@ -364,13 +366,7 @@ pub async fn get_erc20_balance(_headers: Vec<(String, String)>, _qry: HashMap<St
             
         },
         _ => {
-            let resp = "Not implement.".to_string();
-            send_response(
-                200,
-                vec![(String::from("content-type"), String::from("text/html"))],
-                resp.into_bytes().to_vec(),
-            );
-            return;
+            res_json = moralis_api::get_erc20_balance(&query_address, &api_key, chain_id).await.unwrap();
         },
     }
     
@@ -386,6 +382,7 @@ pub async fn get_erc20_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<S
     log::info!("get erc20 from txs Query -- {:?}", _qry);
     
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let api_key = std::env::var("MORALIS_API_KEY").unwrap_or("".to_string());
     let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let mut transaction: Vec<Value> = vec!();
     let balance: Value;
@@ -401,13 +398,13 @@ pub async fn get_erc20_from_txs(_headers: Vec<(String, String)>, _qry: HashMap<S
             balance = cmt_api::get_erc20_balance(&query_address).await.unwrap();
         },
         _ => {
-            let resp = "Not implement.".to_string();
-            send_response(
-                200,
-                vec![(String::from("content-type"), String::from("text/html"))],
-                resp.into_bytes().to_vec(),
-            );
-            return;
+            let txs = moralis_api::get_erc20_transfer(&query_address,&api_key, chain_id).await.unwrap();
+            for idx in 0..txs.as_array().unwrap().len() {
+                if txs[idx]["to_address"].as_str().unwrap() == query_address.to_lowercase() {
+                    transaction.push(txs[idx].clone());
+                } 
+            }
+            balance = moralis_api::get_erc20_balance(&query_address, &api_key, chain_id).await.unwrap();
         },
     }
     
@@ -425,6 +422,7 @@ pub async fn get_erc20_to_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
     log::info!("get erc20 to txes Query -- {:?}", _qry);
     
     let chain_id = std::env::var("CHAIN_ID").unwrap_or("18".to_string()).parse::<u64>().unwrap_or(18u64);
+    let api_key = std::env::var("MORALIS_API_KEY").unwrap_or("".to_string());
     let query_address = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let mut transaction: Vec<Value> = vec!();
     let balance: Value;
@@ -440,13 +438,13 @@ pub async fn get_erc20_to_txs(_headers: Vec<(String, String)>, _qry: HashMap<Str
             balance = cmt_api::get_erc20_balance(&query_address).await.unwrap();
         },
         _ => {
-            let resp = "Not implement.".to_string();
-            send_response(
-                200,
-                vec![(String::from("content-type"), String::from("text/html"))],
-                resp.into_bytes().to_vec(),
-            );
-            return;
+            let txs = moralis_api::get_erc20_transfer(&query_address,&api_key, chain_id).await.unwrap();
+            for idx in 0..txs.as_array().unwrap().len() {
+                if txs[idx]["to_address"].as_str().unwrap() == query_address.to_lowercase() {
+                    transaction.push(txs[idx].clone());
+                } 
+            }
+            balance = moralis_api::get_erc20_balance(&query_address, &api_key, chain_id).await.unwrap();
         },
     }
     
