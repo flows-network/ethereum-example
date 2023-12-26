@@ -1,5 +1,6 @@
 use serde_json::Value;
 use serde_json::json;
+use std::time::Duration;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub async fn get_transaction(address: &str, api_key: &str, chain_id: u64) -> Result<Value> {
@@ -29,6 +30,7 @@ pub async fn get_erc20_balance(address: &str, api_key: &str, chain_id: u64) -> R
 }
 
 pub async fn get_erc20_transfer(address: &str, api_key: &str, chain_id: u64) -> Result<Value> {
+	println!("get_erc20_transfer: {} {} {}", address, api_key, chain_id);
 	let result = get_request(format!("{}/erc20/transfers?chain={:#x}", address, chain_id).as_str(), api_key)
 	.await
 	.unwrap();
@@ -40,11 +42,22 @@ async fn get_request(query: &str, api_key: &str) -> Result<Value> {
 	let client = reqwest::Client::new();
 	let res = client
 		.get(url + query)
+		.timeout(Duration::from_secs(30))
 		.header("accept", "application/json")
 		.header("X-API-Key", api_key)
 		.send()
-		.await?;
-
+		.await;
+	let res = match res {
+		Ok(ok) => ok,
+		Err(err) => {
+			if err.is_timeout() {
+				log::error!("encountered timeout");
+			} else {
+				log::error!("{err}");
+			}
+			panic!("{err}");
+		}
+	};
 	let body = res.text().await?;
 	let res_json: Value = serde_json::from_str(body.as_str())?;
 	// let map: HashMap<String, serde_json::Value> = res_json; 
