@@ -9,6 +9,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
 use ethers_core::abi::Token;
+// use core::time::Duration;
 
 pub mod ether_lib;
 pub mod cmt_api;
@@ -94,7 +95,6 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
         )
         .unwrap();
 
-
     if let Err(e) = route(router).await {
         match e {
             RouteError::NotFound => {
@@ -106,6 +106,7 @@ async fn handler(_headers: Vec<(String, String)>, _subpath: String, _qry: HashMa
         }
     }
 }
+
 
 async fn gen_key(_headers: Vec<(String, String)>, _qry: HashMap<String, Value>, _body: Vec<u8>){
     logger::init();
@@ -220,6 +221,7 @@ pub async fn get_txs(_headers: Vec<(String, String)>, _qry: HashMap<String, Valu
     let caller = _qry.get("address").expect("Require an address").as_str().unwrap().trim_matches('"').to_string();
     let eth_balance = get_ethbalance(&rpc_node_url, &caller).await.unwrap();
     let mut transaction: Vec<Value> = vec!();
+
     match chain_id{
         18 =>{
             let query_tx = cmt_api::get_transaction(&caller).await.unwrap();
