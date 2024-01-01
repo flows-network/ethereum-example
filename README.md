@@ -86,6 +86,76 @@ The Running log will show the address and the private key.
 
 ![image](https://i.imgur.com/StSqkK3.png)
 
+### Get_pbm_balance
+
+(Before using the service you need to provide `CONTRACT_ADDRESS` in flows.network setting configuration.)
+
+Get_pbm_balance service will query an address balance in the pbm. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_pbm_balance?address=0x70655c1c0D7Ef1273D17E5610a2079E7465F0FF6`. Then you can see the balance.
+![image](https://i.imgur.com/3QqAiO6.png)
+
+### Get_pbm_from_txs
+
+(Before using the service you need to provide `CONTRACT_ADDRESS` in flows.network setting configuration.)
+
+Get_pbm_from_txs will query a transaction of address that transfers tokens from PBM to another account. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_pbm_from_txs?address=0x70655c1c0D7Ef1273D17E5610a2079E7465F0FF6`. Then you can see the transaction result.
+
+![image](https://i.imgur.com/OiJGFfK.png)
+
+### Get_pbm_to_txs
+
+(Before using the service you need to provide `CONTRACT_ADDRESS` in flows.network setting configuration.)
+
+Get_pbm_to_txs will query a transaction of the address that receives PBM transfer token. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_pbm_to_txs?address=0x8091f38dd65bae3ceef0c9ea51780172c535f94e`. Then you can see the transaction result.
+
+![image](https://i.imgur.com/KOHq2U1.png)
+
+### Get_balance
+
+Get_balance service will query an address balance. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_balance?address=0x8091f38dd65bae3ceef0c9ea51780172c535f94e`. Then you can see the balance.
+
+![image](https://i.imgur.com/xG3KQay.png)
+
+### Get_txs
+
+(This service needed another explorer API. It is implemented by CMT tracking and moralis, only supporting CyberMiles and [some chains](https://docs.moralis.io/supported-chains). If you do not use CyberMiles, you need to provide [`MORALIS_API_KEY`](https://docs.moralis.io/) in flows.network setting configuration.)
+
+Get_txs service will query an address balance and send transaction. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_txs?address=0x70655c1c0D7Ef1273D17E5610a2079E7465F0FF6`. Then you can see the balance and transaction.
+
+![image](https://i.imgur.com/2Mu4zuU.png)
+
+### Get_erc20_balance
+
+(If you do not use CyberMiles, you need to provide [`MORALIS_API_KEY`](https://docs.moralis.io/) in flows.network setting configuration.)
+
+Get_erc20_balance service will query all the token of the address. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_erc20_balance?address=0x70655c1c0D7Ef1273D17E5610a2079E7465F0FF6`. Then you can see the token.
+
+![image](https://i.imgur.com/zBg4oyx.png)
+
+### Get_erc20_from_txs
+
+(If you do not use CyberMiles, you need to provide [`MORALIS_API_KEY`](https://docs.moralis.io/) in flows.network setting configuration.)
+
+Get_erc20_from_txs will query a transaction of address that transfers erc20 tokens to another account. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_erc20_from_txs?address=0x70655c1c0D7Ef1273D17E5610a2079E7465F0FF6`. Then you can see the transaction result.
+
+
+![image](https://i.imgur.com/53DytSr.png)
+
+### Get_erc20_to_txes
+
+(If you do not use CyberMiles, you need to provide [`MORALIS_API_KEY`](https://docs.moralis.io/) in flows.network setting configuration.)
+
+Get_erc20_to_txs will query a transaction of the address that receives erc20 token. You need to add `address` to the query parameter.
+Copy and paste the endpoint URL to your browser and add `/get_erc20_to_txs?address=0x8091f38dd65bae3ceef0c9ea51780172c535f94e`. Then you can see the transaction result. 
+
+![image](https://i.imgur.com/DUfWHgX.png)
+
 > [flows.network](https://flows.network/) is still in its early stages. We would love to hear your feedback!
 
 ## Others
